@@ -84,7 +84,7 @@ class Asset < ActiveRecord::Base
   
   validates_attachment_presence :asset, :message => "You must choose a file to upload!"
   validates_attachment_content_type :asset, 
-    :content_type => Radiant::Config["assets.content_types"].split(', ') if Radiant::Config.table_exists? && Radiant::Config["assets.content_types"]
+    :content_type => Radiant::Config["assets.content_types"].split(', ') if Radiant::Config.table_exists? && Radiant::Config["assets.content_types"] && Radiant::Config["assets.skip_filetype_validation"] == nil
   validates_attachment_size :asset, 
     :less_than => Radiant::Config["assets.max_asset_size"].to_i.megabytes if Radiant::Config.table_exists? && Radiant::Config["assets.max_asset_size"]
     
@@ -95,7 +95,7 @@ class Asset < ActiveRecord::Base
       self.asset.url
     else
       if self.pdf?
-        self.asset.url(size.to_sym)
+        "/images/assets/pdf_#{size.to_s}.png"
       elsif self.movie?
         "/images/assets/movie_#{size.to_s}.png"
       elsif self.audio?
@@ -138,6 +138,24 @@ class Asset < ActiveRecord::Base
     define_method("#{content}?") { self.class.send("#{content}?", asset_content_type) }
   end
   
+  def dimensions(size='original')
+    @dimensions ||= {}
+    @dimensions[size] ||= image? && begin
+      image_file = "#{RAILS_ROOT}/public#{thumbnail(size)}"
+      image_size = ImageSize.new(open(image_file).read)
+      [image_size.get_width, image_size.get_height]
+    rescue
+      [0, 0]
+    end
+  end
+  
+  def width(size='original')
+    image? && self.dimensions(size)[0]
+  end
+  
+  def height(size='original')
+    image? && self.dimensions(size)[1]
+  end
   
   private
   
