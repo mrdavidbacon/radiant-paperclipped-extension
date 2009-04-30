@@ -180,6 +180,10 @@ module AssetTags
     asset = find_asset(tag, options)
     if asset.image?
       size = options['size'] ? options.delete('size') : 'original'
+      geometry = options['geometry'] ? options.delete('geometry') : nil
+      #This is very exoerimental and will generate new sizes on the fly
+      asset.generate_style(size, { :size => geometry }) if geometry
+      
       alt = " alt='#{asset.title}'" unless tag.attr['alt'] rescue nil
       attributes = options.inject('') { |s, (k, v)| s << %{#{k.downcase}="#{v}" } }.strip
       attributes << alt unless alt.nil?

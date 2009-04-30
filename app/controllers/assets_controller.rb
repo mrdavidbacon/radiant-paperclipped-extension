@@ -19,6 +19,10 @@ class AssetsController < ApplicationController
         @asset.pages << @page
       end
     end
+
+    after :create_fails do
+
+    end
     
     after :update do
       ResponseCache.instance.clear
@@ -40,15 +44,30 @@ class AssetsController < ApplicationController
           render :update do |page|
             page.call('Asset.ChooseTabByName', 'page-attachments')
             page.insert_html :bottom, "attachments", :partial => 'assets/asset', :object => @asset, :locals => {:dom_id => "attachment_#{@asset.id}" }    # can i be bothered to find the attachment id?
-            page.call('Asset.AddAsset', "attachment_#{@asset.id}")
-            # we ought to reinitialise the sortable attachments too
+            page.call('Asset.AddAsset', "attachment_#{@asset.id}")          # we ought to reinitialise the sortable attachments too
             page.visual_effect :highlight, "attachment_#{@asset.id}" 
             page.call('Asset.ResetForm')
           end
         end          
       }
     end
-     
+    response_for :create_fails do |format|
+      format.html { 
+        flash[:error] = "Asset not uploaded."
+        render :action => 'new'
+      }
+      format.js {
+        responds_to_parent do
+          render :update do |page|
+            page.call('Asset.ClearErrors')
+            page.insert_html :top, "asset-upload", :partial => 'assets/errors'
+            page.call('Asset.ChooseTabByName', 'upload-assets')
+            page.visual_effect :highlight, "asset_errors"
+            page.call('Asset.ReactivateForm');
+          end
+        end          
+      }
+    end
   end
   
   def regenerate_thumbnails
@@ -137,38 +156,7 @@ class AssetsController < ApplicationController
   protected
   
     def current_objects
-      unless params['search'].blank?
-        term = params['search'].downcase
-
-        search_cond_sql = []
-        cond_params = {}
-      
-        search_cond_sql << 'LOWER(asset_file_name) LIKE (:term)'
-        search_cond_sql << 'LOWER(title) LIKE (:term)'
-        search_cond_sql << 'LOWER(caption) LIKE (:term)'
-
-        cond_sql = search_cond_sql.join(" or ")
-      
-        cond_params[:term] = "%#{term}%"
-      
-        @conditions = [cond_sql, cond_params]
-      else
-        @conditions = []
-      end
-      
-      @file_types = params[:filter].blank? ? [] : params[:filter].keys
-
-      if not @file_types.empty?
-        Asset.paginate_by_content_types(@file_types, :all, :conditions => @conditions, :order => 'created_at DESC', 
-          :page => params[:page], :per_page => 10, :total_entries => count_by_conditions)
-      else
-        Asset.paginate(:all, :conditions => @conditions, :order => 'created_at DESC', :page => params[:page], :per_page => 10)
-      end
-    end
-    
-    def count_by_conditions
-      type_conditions = @file_types.blank? ? nil : Asset.types_to_conditions(@file_types.dup).join(" OR ")
-      @count_by_conditions ||= @conditions.empty? ? Asset.count(:all, :conditions => type_conditions) : Asset.count(:all, :conditions => @conditions)
+      Asset.search(params['search'], params['filter'], params['page'])
     end
 
 end

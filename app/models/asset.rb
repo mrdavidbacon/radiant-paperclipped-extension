@@ -73,8 +73,14 @@ class Asset < ActiveRecord::Base
   has_attached_file :asset,
                     :styles => thumbnail_sizes,
                     :whiny_thumbnails => false,
-                    :url => "/:class/:id/:basename:no_original_style.:extension",
-                    :path => ":rails_root/public/:class/:id/:basename:no_original_style.:extension"
+                    :storage => Radiant::Config["assets.storage"] == "s3" ? :s3 : :filesystem, 
+                    :s3_credentials => {
+                      :access_key_id => Radiant::Config["assets.s3.key"],
+                      :secret_access_key => Radiant::Config["assets.s3.secret"]
+                    },
+                    :bucket => Radiant::Config["assets.s3.bucket"],
+                    :url => Radiant::Config["assets.url"] ? Radiant::Config["assets.url"] : "/:class/:id/:basename:no_original_style.:extension", 
+                    :path => Radiant::Config["assets.path"] ? Radiant::Config["assets.path"] : ":rails_root/public/:class/:id/:basename:no_original_style.:extension"
                                  
   has_many :page_attachments, :dependent => :destroy
   has_many :pages, :through => :page_attachments
@@ -108,21 +114,15 @@ class Asset < ActiveRecord::Base
     end
   end
   
-  def generate_thumbnail(name, args)
-    path = File.join(RAILS_ROOT, 'public', self.asset(:original))
-    self.asset do 
-      path = File.join(RAILS_ROOT, 'public', self.asset(:original))
-      begin
-        dimensions, format = args
-        dimensions = dimensions.call(instance) if dimensions.respond_to? :call
-        @queued_for_write[name] = Paperclip::Thumbnail.make(File.new(path), 
-                                                 dimensions,
-                                                 format, 
-                                                 @whiny_thumnails)
-      rescue PaperclipError => e
-        @errors << e.message if @whiny_thumbnails
-      end
-      attachment.save
+  def generate_style(name, args={}) 
+    size = args[:size] 
+    format = args[:format] || :jpg
+    asset = self.asset
+    if asset.exists?(name.to_sym)
+      return false
+    else
+      self.asset.styles[name.to_sym] = {:geometry => size, :format => format, :whiny => true, :convert_options=>"", :processors=>[:thumbnail]} 
+      self.asset.reprocess!
     end
   end
   
@@ -156,6 +156,40 @@ class Asset < ActiveRecord::Base
   def height(size='original')
     image? && self.dimensions(size)[1]
   end
+  
+  def self.search(search, filter, page)  
+    unless search.blank?
+
+      search_cond_sql = []
+      search_cond_sql << 'LOWER(asset_file_name) LIKE (:term)'
+      search_cond_sql << 'LOWER(title) LIKE (:term)'
+      search_cond_sql << 'LOWER(caption) LIKE (:term)'
+
+      cond_sql = search_cond_sql.join(" or ")
+    
+      @conditions = [cond_sql, {:term => "%#{search.downcase}%" }]
+    else
+      @conditions = []
+    end
+    
+    options = { :conditions => @conditions,
+                :order => 'created_at DESC',
+                :page => page,
+                :per_page => 10 }
+    
+    @file_types = filter.blank? ? [] : filter.keys
+    if not @file_types.empty?
+      options[:total_entries] = count_by_conditions
+      Asset.paginate_by_content_types(@file_types, :all, options )
+    else
+      Asset.paginate(:all, options)
+    end
+  end
+  
+  def self.count_by_conditions()
+    type_conditions = @file_types.blank? ? nil : Asset.types_to_conditions(@file_types.dup).join(" OR ")
+    @count_by_conditions ||= @conditions.empty? ? Asset.count(:all, :conditions => type_conditions) : Asset.count(:all, :conditions => @conditions)
+  end  
   
   private
   
