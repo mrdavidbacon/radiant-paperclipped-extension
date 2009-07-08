@@ -1,11 +1,12 @@
 Paperclipped
 ---
 
-Paperclip is a new file management plugin from Thoughtbot which has a  few advantages over attachment_fu: it doesn't use RMagick, which uses a lot of RAM and is a bit of overkill for just making thumbnails. Instead it directly uses ImageMagick, making it much easier to install. 
+## IMPORTANT!
 
-This version of paperclipped adds:
+This version of Paperclipped technically requires Radiant 0.8.0 or higher. Changes in the caching system and the updgrade to Rails 2.3.2 break the previous versions of the extension, but there are a few work arounds and it should work with 0.7.1. Just in case, the previous version is still around, on a branch marked Radiant-0.7.1. 
 
-* error reports if inline file uploads fail (eg they exceed the file size limit)
+Let me know if this works and if you run into any issues. 
+
 
 ###Installation
 
@@ -68,7 +69,8 @@ Another important tag is the <code><r:assets:each>...</r:assets:each></code>. If
 * `order` and `by` lets you control sorting;
 * `extensions` allows you to filter assets by file extensions; you can specify multiple extensions separated by `|`.
 
-`<r:if_assets [min_count="0"]>` and `<r:unless_assets [min_count="0"]>` 
+<code><pre>`<r:if_assets [min_count="0"]>` and `<r:unless_assets [min_count="0"]>` 
+</code></pre>
   
 conditional tags let you optionally render content based on the existance of tags. They accept the same options as `<r:assets:each>`.
 
@@ -78,6 +80,7 @@ You can access sizes of image assets for various versions with the tags `<r:asse
 
 Also, for vertical centering of images, you have the handy `<r:assets:top_padding container="<container height>" [size="icon"]/>` tag. Working example:
   
+
     <ul>
       <r:assets:each>
         <li style="height:140px">
@@ -86,41 +89,45 @@ Also, for vertical centering of images, you have the handy `<r:assets:top_paddin
         </li>
       </r:assets:each>
     </ul>
-
-###Migrating from the page_attachments extension
-
-If you're moving from page_attachments to paperclipped, here's how to migrate smoothly:
-
-First, remove or disable the page_attachments extension, and install the paperclipped extension.
-For example:
-
-    rake ray:dis name=page_attachments
-    rake ray:assets
+   
     
-The migration has now copied your original `page_attachments` table to `old_page_attachments`.
-
-    rake radiant:extensions:paperclipped:migrate_from_page_attachments
-  
-This rake task will create paperclipped-style attachments for all `OldPageAttachments`. It will also ask you if you want to clean up the old table and thumbnails in `/public/page_attachments`.
-
-Done!
-
-
 ###Using Amazon s3
 Everything works as before, but now if you want to add S3 support, you simply set the storage setting to "s3". 
 
-    Radiant::Config[assets.storage] = "s3"
-
+<pre><code>Radiant::Config[assets.storage] = "s3"</code></pre>
+ 
 Then add 3 new settings with your Amazon credentials, either in the console or with the [Settings](http://github.com/Squeegy/radiant-settings/tree/master) extension:
 
-    Radiant::Config[assets.s3.bucket] = "my_supercool_bucket"
-    Radiant::Config[assets.s3.key] = "123456"
-    Radiant::Config[assets.s3.secret] = "123456789ABCDEF"
+<pre><code>Radiant::Config[assets.s3.bucket] = "my_supercool_bucket"
+Radiant::Config[assets.s3.key] = "123456"
+Radiant::Config[assets.s3.secret] = "123456789ABCDEF"
+</code></pre>
 
 and finally the path you want to use within your bucket, which uses the same notation as the Paperclip plugin.
 
 <pre><code>Radiant::Config[assets.path] = :class/:id/:basename_:style.:extension 
 </code></pre>
 
-The path setting, along with a new <code>url</code> setting can also be used with the file system to customize both the path and url of your assets.
+The path setting, along with a new <code>url</code> setting can be used with the file system to customize both the path and url of your assets.
 
+
+### Migrating from the page_attachments extension
+
+If you're moving from page_attachments to paperclipped, here's how to migrate smoothly:
+
+First, remove or disable the page_attachments extension, and install the paperclipped extension.
+For example:
+
+<pre><code>rake ray:dis name=page_attachments
+rake ray:assets
+</code></pre>
+    
+  
+The migration has now copied your original `page_attachments` table to `old_page_attachments`.
+
+<pre><code>rake radiant:extensions:paperclipped:migrate_from_page_attachments
+</code></pre>
+  
+This rake task will create paperclipped-style attachments for all `OldPageAttachments`. It will also ask you if you want to clean up the old table and thumbnails in `/public/page_attachments`.
+
+Done!

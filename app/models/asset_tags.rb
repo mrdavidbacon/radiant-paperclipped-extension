@@ -67,7 +67,7 @@ module AssetTags
      <pre><code><r:if_assets [min_count="n"] [extensions="pdf|jpg"]>...</r:if_assets></code></pre>
    }
    tag 'if_assets' do |tag|
-     count = tag.attr['min_count'] && tag.attr['min_count'].to_i || 0
+     count = tag.attr['min_count'] && tag.attr['min_count'].to_i || 1
      assets = tag.locals.page.assets.count(:conditions => assets_find_options(tag)[:conditions])
      tag.expand if assets >= count
    end
@@ -76,7 +76,7 @@ module AssetTags
      The opposite of @<r:if_attachments/>@.
    }
    tag 'unless_assets' do |tag|
-     count = tag.attr['min_count'] && tag.attr['min_count'].to_i || 0
+     count = tag.attr['min_count'] && tag.attr['min_count'].to_i || 1
      assets = tag.locals.page.assets.count(:conditions => assets_find_options(tag)[:conditions])
      tag.expand unless assets >= count
    end
@@ -106,11 +106,7 @@ module AssetTags
       if asset.image?
         size = options['size'] ? options.delete('size') : 'icon'
         container = options.delete('container')
-        root = "#{RAILS_ROOT}/public#{asset.thumbnail(size)}"
-        img_height = 0
-        open(root, "rb") do |fh|
-          img_height = ImageSize.new(fh.read).get_height
-        end
+        img_height = asset.height(size)
         (container.to_i - img_height.to_i)/2
       else
         raise TagError, "Asset is not an image"
@@ -231,7 +227,7 @@ module AssetTags
     attributes = options.inject('') { |s, (k, v)| s << %{#{k.downcase}="#{v}" } }.strip
     attributes = " #{attributes}" unless attributes.empty?
     text = tag.double? ? tag.expand : text
-    url = asset.thumbnail(size)
+    url = asset.image? ? asset.thumbnail(size) : asset.asset.url
     %{<a href="#{url  }#{anchor}"#{attributes}>#{text}</a>} rescue nil
   end
   
